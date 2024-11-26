@@ -1,0 +1,6 @@
+.env
+backend/*.log
+backend/*.csv
+backend/*.txt
+backend/*.tsv
+backend/*.tsv.gz

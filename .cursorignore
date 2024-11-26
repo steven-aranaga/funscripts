@@ -1,0 +1,11 @@
+.env
+.cursorrules
+.gitignore
+.git/
+.cursorignore
+venv/
+.log
+.csv
+.txt
+.tsv
+.tsv.gz

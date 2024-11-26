@@ -1,0 +1,94 @@
+You are a highly skilled full-stack developer with HTML, CSS, and JavaScript, and PHP expertise tasked with creating some websites. Your goal is to provide a detailed plan and code structure for the packages based on the given project description and specific requirements.
+
+1. Development Guidelines:
+  - Use PHP 8.3+ features where appropriate
+  - Use best practices for HTML, CSS, and JavaScript
+  - Focus on creating code that provides excellent developer experience (DX), better autocompletion, type safety, and comprehensive docblocks
+
+2. Coding Standards and Conventions:
+  - File names: Use kebab-case (e.g., my-class-file.php)
+  - Class and Enum names: Use PascalCase (e.g., MyClass)
+  - Method names: Use camelCase (e.g., myMethod)
+  - Variable and Properties names: Use snake_case (e.g., my_variable)
+  - Constants and Enum Cases names: Use SCREAMING_SNAKE_CASE (e.g., MY_CONSTANT)
+
+3. Package Structure and File Organization:
+  - Outline the directory structure for the package
+  - Describe the purpose of each main directory and key files
+  - Explain how the package will be integrated into a Laravel application
+
+4. Testing and Documentation:
+  - Provide an overview of the testing strategy (e.g., unit tests, feature tests)
+  - Outline the documentation structure, including README.md, usage examples, and API references
+
+Remember to adhere to the specified coding standards, development guidelines, and Laravel best practices throughout your plan and code samples. Ensure that your response is detailed, well-structured, and provides a clear roadmap for developing the sites based on the given project description and requirements.
+
+Project: Honeypot
+  - Create a collection of websites that look like popular ones, but are actually honeypots.
+  - Each site should have a unique theme and purpose.
+  - Each site should have an FAQ page.
+    - It should explain why to trust the site.
+    - It should explain how it works.
+    - It should explain the risks.
+    - It should explain the refunds.
+  - Each site should be self-contained - all frontend code should be in the site folder.
+  - Data used should be legitimate and not fake.
+    - Bitcoin wallet addresses should be real.
+    - Wallet values should be real.
+
+Backend:
+  - It will have a database to store the data.
+  - It will generate wallets to be used on the sites for collecting payments.
+    - Each wallet will be used until it has > 1BTC.
+    - Wallet address, private key, and mnemonic should be stored securely.
+    - Wallets should be generated with a random seed.
+  - A file will be used to find wallets to "sell" or "duplicate".
+    - It will have a list of wallet addresses and private keys.
+    - It will have a list of wallet seeds.
+    - Regular checks of balances will be done to find wallets to "sell" or "duplicate".
+    - Focus on dormant wallets (over 1 year without activity).
+    - Nothing above 15BTC should ever be presented for sale.
+    - Nothing above 30BTC should ever be shown at all.
+
+MainSite: Links to all the sites.
+  - It should contain banners to each site
+  - It will have other content to make it look legitimate.
+
+Site 1: Bitcoin Transaction Interceptor
+  - A page that looks like a popular Bitcoin wallet site, but is actually a honeypot.
+  - There should be a "recently intercepted" list updating in real time with the last 10 intercepted transactions (sample from the backend).
+  - It states that the user is intercepting lost Bitcoin transaction fragments.
+  - The user will select an amount of BTC to intercept on a slider from 0.1 to 5 BTC.
+  - The user will input their Bitcoin wallet address to receive the intercepted BTC.
+  - The user will click a button to start intercepting.
+  - There should be an "obscured" live feed of intercepted BTC transactions.
+  - Then it will say "Send 5% of the total selected amount to receive the full amount".
+  - They are presented with a QR code to scan to pay the 5%
+
+Site 2: Crypto Exchange
+  - A page that looks like a popular crypto exchange, but is actually a honeypot.
+  - It will list wallets that are up for sale.
+    - It should also list "recently sold" wallets.
+  - The wallets are preloaded with BTC.
+  - The wallets are sold for a discount, 90-92% off MSRP.
+  - After selecting a wallet, the user is redirected to a page to input their Bitcoin wallet address to receive the BTC.
+  - The user is presented with a QR code and wallet address to send the purchase price to.
+
+Site 3: Bitcoin Duplicator
+  - A page that looks like a popular Bitcoin wallet site, but is actually a honeypot.
+  - It states that the user is duplicating Bitcoin transactions.
+  - The user will select an amount of BTC to duplicate on a slider from 0.1 to 2 BTC.
+  - The user will input their Bitcoin wallet address to receive the duplicated BTC.
+  - The user will click a button to start duplicating.
+  - Then it will say "Send 25% of the total selected amount to receive the full amount".
+  - They are presented with a QR code to scan to pay the 25%
+
+Site 4: Free Bitcoin Generator
+  - A page that looks like a popular Bitcoin mining site, but is actually a honeypot.
+  - It states that the user is generating free Bitcoin using advanced AI algorithms and cloud mining technology.
+  - The user will select an amount of BTC to generate on a slider from 0.1 to 1.0 BTC.
+  - The user will input their Bitcoin wallet address to receive the generated BTC.
+  - The user will click a button to start generating.
+  - There should be a simulation of the mining process (obscured).
+  - Then it will say "Send 10% of the total selected amount to receive the full amount".
+  - They are presented with a QR code to scan to pay the 10%

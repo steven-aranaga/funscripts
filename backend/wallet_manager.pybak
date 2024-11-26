@@ -1,0 +1,235 @@
+from dotenv import load_dotenv
+import os
+import time
+import csv
+from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
+from mnemonic import Mnemonic
+from bip32utils import BIP32Key
+import logging
+
+# Custom filter to ignore log messages containing "Private Key"
+class IgnorePrivateKeysFilter(logging.Filter):
+    def filter(self, record):
+        return 'Private Key' not in record.getMessage()
+
+# Configure logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Create a formatter
+formatter = logging.Formatter('%(asctime)s - %(name)s:%(lineno)d - %(levelname)s - %(message)s')
+
+# Create and configure a file handler
+file_handler = logging.FileHandler('wallet_manager.log')
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(formatter)
+file_handler.addFilter(IgnorePrivateKeysFilter())  # Add the custom filter
+
+# Create and configure a stream handler
+stream_handler = logging.StreamHandler()
+stream_handler.setLevel(logging.INFO)
+stream_handler.setFormatter(formatter)
+stream_handler.addFilter(IgnorePrivateKeysFilter())  # Add the custom filter
+
+# Add handlers to the logger
+logger.addHandler(file_handler)
+logger.addHandler(stream_handler)
+
+# Prevent propagation to the root logger
+logger.propagate = False
+
+logger.info("Starting wallet manager")
+
+# Load environment variables from .env file
+load_dotenv()
+
+# RPC credentials from environment variables
+RPC_USER = os.getenv('RPC_USER')
+RPC_PASSWORD = os.getenv('RPC_PASSWORD')
+RPC_HOST = os.getenv('RPC_HOST', '127.0.0.1')
+RPC_PORT = os.getenv('RPC_PORT', '8332')
+
+# File paths from environment variables
+WALLETS_FILE = os.getenv('WALLETS_FILE', 'wallets.csv')
+ACTIVE_WALLETS_FILE = os.getenv('ACTIVE_WALLETS_FILE', 'active_wallets.txt')
+PRIVATE_KEYS_FILE = os.getenv('PRIVATE_KEYS_FILE', 'private_keys.txt')
+
+# Validate required environment variables
+required_vars = ['RPC_USER', 'RPC_PASSWORD']
+missing_vars = [var for var in required_vars if not os.getenv(var)]
+if missing_vars:
+    raise EnvironmentError(f"Missing required environment variables: {', '.join(missing_vars)}")
+wallet_name="watch-wallet"
+
+# Connect to Bitcoin Core RPC
+def connect_to_node():
+    rpc_url = f"http://{RPC_USER}:{RPC_PASSWORD}@127.0.0.1:8332/wallet/{wallet_name}"
+    return AuthServiceProxy(rpc_url, timeout=360)
+
+def ensure_wallet_loaded(rpc_connection):
+    try:
+        loaded_wallets = rpc_connection.listwallets()
+        if wallet_name not in loaded_wallets:
+            rpc_connection.loadwallet(wallet_name)
+            logger.info(f"Wallet '{wallet_name}' loaded.")
+    except JSONRPCException as e:
+        logger.error(f"Error ensuring wallet is loaded: {e}")
+        raise
+
+# Generate a Bitcoin wallet
+def generate_wallet():
+    # Generate mnemonic
+    mnemo = Mnemonic("english")
+    mnemonic = mnemo.generate(strength=256)
+    
+    # Generate seed from mnemonic
+    seed = mnemo.to_seed(mnemonic)
+    
+    # Derive private key using BIP32
+    bip32_root_key = BIP32Key.fromEntropy(seed)
+    derived_key = bip32_root_key.ChildKey(0).ChildKey(0)  # Derive first account, first key
+    
+    # Get private key and address
+    private_key = derived_key.WalletImportFormat()  # WIF private key
+    address = derived_key.Address()  # Derived Bitcoin address
+
+    logger.info(f"Generated wallet: {address}")
+    return address, private_key, mnemonic, "active", "no"
+
+def import_address_as_descriptor(rpc_connection, address):
+    descriptor = f"addr({address})"
+    try:
+        rpc_connection.importdescriptors([{
+            "desc": descriptor,
+            "timestamp": "now",
+            "active": True
+        }])
+        logger.info(f"Imported address {address} as a descriptor")
+    except JSONRPCException as e:
+        logger.error(f"Error importing address {address}: {e}")
+
+# Load wallets from CSV
+def load_wallets():
+    wallets = []
+    if os.path.exists(WALLETS_FILE):
+        with open(WALLETS_FILE, mode="r") as f:
+            reader = csv.DictReader(f)
+            wallets = list(reader)
+    return wallets
+
+# Save wallets to CSV
+def save_wallets(wallets):
+    with open(WALLETS_FILE, mode="w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["address", "private_key", "mnemonic", "status", "imported"])
+        writer.writeheader()
+        writer.writerows(wallets)
+
+# Update wallet status
+def update_wallet_status(wallets, address, new_status):
+    for wallet in wallets:
+        if wallet["address"] == address:
+            wallet["status"] = new_status
+            break
+
+def get_total_received(rpc_connection, address):
+    try:
+        return rpc_connection.getreceivedbyaddress(address)
+    except JSONRPCException as e:
+        logger.error(f"Error checking received amount for {address}: {e}")
+        return 0
+
+# Check wallet balance using RPC
+def get_balance(rpc_connection, address):
+    try:
+        # List all UTXOs for the address
+        utxos = rpc_connection.listunspent(0, 9999999, [address])
+        # Sum the values of all UTXOs for the address
+        balance = sum(utxo["amount"] for utxo in utxos)
+        return balance
+    except JSONRPCException as e:
+        try:
+            import_address_as_descriptor(rpc_connection, address)
+        except Exception as e:
+            logger.error(f"Error importing address {address}: {e}")
+        return 0
+
+# Monitor wallets for balances
+def monitor_wallets():
+    while True:
+        rpc_connection = connect_to_node()
+
+        wallets = load_wallets()
+        active_wallets = [w for w in wallets if w["status"] == "active"]
+        exceeded_wallets = []
+
+        # Monitor active wallets
+        for wallet in active_wallets:
+            address = wallet["address"]
+
+            # Ensure the address is imported as a descriptor
+            if wallet.get("imported", "no") == "no":
+                import_address_as_descriptor(rpc_connection, address)
+                wallet["imported"] = "yes"
+
+            # Get balance using listunspent
+            balance = get_balance(rpc_connection, address)
+
+            if balance > 2:
+                logger.info(f"Retiring wallet {address} with balance {balance}")
+                # Mark wallet as exceeded
+                update_wallet_status(wallets, address, "exceeded")
+                exceeded_wallets.append(wallet["private_key"])
+            elif balance == 0 and wallet["status"] == "exceeded":
+                logger.info(f"Marking wallet {address} as retired")
+                # Mark swept wallets as retired
+                update_wallet_status(wallets, address, "retired")
+
+        # Save updated wallets
+        save_wallets(wallets)
+
+        # Update active wallets file
+        with open(ACTIVE_WALLETS_FILE, "w") as af:
+            for wallet in wallets:
+                if wallet["status"] == "active":
+                    af.write(wallet["address"] + "\n")
+
+        # Update private keys file for exceeded wallets
+        with open(PRIVATE_KEYS_FILE, "w") as pk_file:
+            for wallet in wallets:
+                if wallet["status"] == "exceeded" and get_balance(rpc_connection, wallet["address"]) > 0:
+                    pk_file.write(wallet["private_key"] + "\n")
+
+        # Generate new wallets if needed
+        while len(active_wallets) < 50:
+            address, private_key, mnemonic, status, imported = generate_wallet()
+            wallets.append({
+                "address": address,
+                "private_key": private_key,
+                "mnemonic": mnemonic,
+                "status": status,
+                "imported": imported
+            })
+            active_wallets.append({"address": address, "private_key": private_key, "mnemonic": mnemonic, "status": status, "imported": imported})
+
+        # Save updated wallets again after generation
+        save_wallets(wallets)
+
+        time.sleep(300)  # Check every 5 minutes
+
+if __name__ == "__main__":
+    if not os.path.exists(WALLETS_FILE):
+        # Initialize by generating 50 wallets
+        wallets = []
+        for _ in range(50):
+            address, private_key, mnemonic, status = generate_wallet()
+            wallets.append({
+                "address": address,
+                "private_key": private_key,
+                "mnemonic": mnemonic,
+                "status": status,
+                "imported": "no"
+            })
+        save_wallets(wallets)
+
+    # Start monitoring wallets
+    monitor_wallets()
