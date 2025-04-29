@@ -5,8 +5,67 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const Joi = require('joi');
 const compression = require('compression');
+const jwt = require('jsonwebtoken');
+const createError = require('http-errors');
 const app = express();
 const PORT = 3800;
+
+// JWT verification middleware
+const verifyToken = (req, res, next) => {
+    const token = req.headers['authorization']?.split(' ')[1];
+    
+    if (!token) {
+        return next(createError(401, 'No token provided'));
+    }
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (err) {
+        return next(createError(403, 'Invalid or expired token'));
+    }
+};
+
+// Error handling middleware
+const errorHandler = (err, req, res, next) => {
+    const status = err.status || 500;
+    const message = err.message || 'Internal Server Error';
+    
+    // Log error details for debugging
+    if (status === 500) {
+        console.error(err);
+    }
+    
+    res.status(status).json({
+        error: {
+            status,
+            message,
+            timestamp: new Date().toISOString()
+        }
+    });
+};
+
+// Request validation schemas
+const schemas = {
+    getAddresses: Joi.object({
+        max: Joi.number().min(0).max(15).default(15)
+    }),
+    getWallets: Joi.object({
+        limit: Joi.number().min(1).max(100).default(50)
+    })
+};
+
+// Validation middleware factory
+const validateRequest = (schema) => {
+    return (req, res, next) => {
+        const { error } = schema.validate(req.query);
+        if (error) {
+            return next(createError(400, error.details[0].message));
+        }
+        next();
+    };
+};
 
 // Security middleware
 app.use(helmet());
@@ -37,7 +96,7 @@ app.use('/api/get-addresses', (req, res, next) => {
 // Add address validation regex
 const BITCOIN_ADDRESS_REGEX = /^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}$/;
 
-app.get('/api/get-addresses', (req, res) => {
+app.get('/api/get-addresses', verifyToken, validateRequest(schemas.getAddresses), (req, res, next) => {
     // Add security headers
     res.set({
         'X-Content-Type-Options': 'nosniff',
@@ -78,7 +137,7 @@ app.get('/api/get-addresses', (req, res) => {
     });
 });
 
-app.get('/api/get-wallets', (req, res) => {
+app.get('/api/get-wallets', verifyToken, validateRequest(schemas.getWallets), (req, res, next) => {
     const filePath = path.join(__dirname, '..', 'backend', 'active_wallets.txt');
 
     // Read the file and return specific data
@@ -104,6 +163,13 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+// Add error handler as the last middleware
+app.use(errorHandler);
+
 app.listen(PORT, '127.0.0.1', () => {
+    if (!process.env.JWT_SECRET) {
+        console.error('WARNING: JWT_SECRET environment variable not set');
+        process.exit(1);
+    }
     console.log(`Server running on http://127.0.0.1:${PORT}`);
 });
