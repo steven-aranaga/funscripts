@@ -238,29 +238,68 @@ class WalletManager:
             raise RPCError(f"Failed to import descriptor for {address}: {e}")
 
     def _secure_erase(self, wallet: Dict[str, str]) -> None:
-        """Truly secure memory wipe using ctypes"""
+        """Truly secure memory wipe using multiple passes and memory locking"""
         import ctypes
+        import secrets
+        from contextlib import contextmanager
+
+        @contextmanager
+        def locked_memory(size: int):
+            """Context manager for memory that can't be swapped"""
+            try:
+                # Allocate memory
+                buf = ctypes.create_string_buffer(size)
+                # Lock memory to prevent swapping
+                if hasattr(ctypes, 'mlock'):
+                    ctypes.mlock(ctypes.addressof(buf), size)
+                # Mark as no-dump
+                if hasattr(ctypes, 'MADV_DONTDUMP'):
+                    ctypes.madvise(buf, size, ctypes.MADV_DONTDUMP)
+                yield buf
+            finally:
+                if hasattr(ctypes, 'munlock'):
+                    ctypes.munlock(ctypes.addressof(buf), size)
+
         try:
-            # Overwrite private key
-            if 'private_key' in wallet:
-                buf = ctypes.create_string_buffer(wallet['private_key'].encode())
-                ctypes.memset(ctypes.addressof(buf), 0, len(buf))
-                # Prevent swap to disk
-                ctypes.madvise(buf, len(buf), ctypes.MADV_DONTDUMP)
-                del buf
-                
-            # Overwrite mnemonic
-            if 'mnemonic' in wallet:
-                buf = ctypes.create_string_buffer(wallet['mnemonic'].encode())
-                ctypes.memset(ctypes.addressof(buf), 0, len(buf))
-                ctypes.madvise(buf, len(buf), ctypes.MADV_DONTDUMP)
-                del buf
-                
+            sensitive_fields = ['private_key', 'mnemonic']
+            for field in sensitive_fields:
+                if field in wallet:
+                    data = wallet[field].encode()
+                    size = len(data)
+
+                    with locked_memory(size) as buf:
+                        # Copy sensitive data
+                        ctypes.memmove(ctypes.addressof(buf), data, size)
+                        
+                        # Multiple overwrite passes with different patterns
+                        patterns = [
+                            b'\x00' * size,  # zeros
+                            b'\xFF' * size,  # ones
+                            secrets.token_bytes(size),  # random
+                            b'\x55' * size,  # alternating 0101
+                            b'\xAA' * size   # alternating 1010
+                        ]
+                        
+                        for pattern in patterns:
+                            ctypes.memmove(ctypes.addressof(buf), pattern, size)
+                            # Force memory barrier
+                            ctypes.memset(ctypes.addressof(buf), 0, 1)
+                        
+                        # Final random overwrite
+                        ctypes.memmove(ctypes.addressof(buf), secrets.token_bytes(size), size)
+                        
+                    # Clear the original string from Python's memory
+                    wallet[field] = '0' * len(wallet[field])
+                    del wallet[field]
+
             # Force garbage collection
             import gc
             gc.collect()
+            gc.collect()  # Double collection to ensure references are cleared
+            
         except Exception as e:
             self.logger.error(f"Secure erase failed: {e}")
+            raise WalletError(f"Failed to securely erase sensitive data: {e}")
 
     def rotate_encryption_key(self, new_key: bytes) -> None:
         """Rotate encryption keys for all wallets"""
