@@ -3,15 +3,31 @@ const fs = require('fs');
 const path = require('path');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const Joi = require('joi');
+const compression = require('compression');
 const app = express();
 const PORT = 3800;
 
 // Security middleware
 app.use(helmet());
+app.use(compression());
 app.use(rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100 // limit each IP to 100 requests per windowMs
 }));
+
+// Input validation middleware
+app.use('/api/get-addresses', (req, res, next) => {
+    const schema = Joi.object({
+        max: Joi.number().min(0).max(15).default(15)
+    });
+    
+    const { error } = schema.validate(req.query);
+    if (error) {
+        return res.status(400).json({ error: error.details[0].message });
+    }
+    next();
+});
 
 app.get('/api/get-addresses', (req, res) => {
     const filePath = path.join(__dirname, '..', 'backend', 'target_wallets.tsv');

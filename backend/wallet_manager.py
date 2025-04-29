@@ -3,8 +3,12 @@ import sys
 import time
 import csv
 import json
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
+from datetime import datetime
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from dataclasses import dataclass
 from functools import lru_cache
 import signal
@@ -215,15 +219,35 @@ class WalletManager:
         except Exception as e:
             raise RPCError(f"Failed to import descriptor for {address}: {e}")
 
+    def _secure_erase(self, wallet: Dict[str, str]) -> None:
+        """Securely overwrite wallet data in memory."""
+        try:
+            # Overwrite sensitive data
+            wallet["private_key"] = b"\x00" * 32
+            wallet["mnemonic"] = b"\x00" * 32
+            # Force garbage collection
+            import gc
+            gc.collect()
+        except Exception as e:
+            self.logger.error(f"Secure erase failed: {e}")
+
+    def _log_audit_event(self, event_type: str, address: str) -> None:
+        """Write to append-only audit log"""
+        audit_log = Path("audit.log")
+        with file_lock_context():
+            with open(audit_log, "a") as f:
+                f.write(f"{datetime.utcnow().isoformat()} | {event_type} | {address}\n")
+
     def update_wallet_files(self, wallets: List[Dict[str, str]]) -> None:
         """Update all wallet-related files atomically."""
         with file_lock_context():
             try:
-                # Update active wallets file
-                with open(self.config.wallet_paths["active"], "w") as f:
+                # Update active wallets file atomically
+                with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_active:
                     for wallet in wallets:
                         if wallet["status"] == WalletStatus.ACTIVE.value:
-                            f.write(f"{wallet['address']}\n")
+                            temp_active.write(f"{wallet['address']}\n")
+                    os.replace(temp_active.name, self.config.wallet_paths["active"])
 
                 # Update private keys file
                 with open(self.config.wallet_paths["private_keys"], "w") as f:

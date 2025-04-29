@@ -4,6 +4,7 @@ import gzip
 import random
 import time
 from typing import List, Tuple, Optional
+from datetime import datetime, timedelta
 from dataclasses import dataclass
 from pathlib import Path
 from itertools import islice
@@ -278,16 +279,23 @@ def monitor_wallets(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=10)
 )
-def get_wallet_balance(rpc_connection: AuthServiceProxy, address: str, config: Config) -> Optional[int]:
-    """Retrieve wallet balance via RPC."""
+def get_wallet_balance(rpc_connection: AuthServiceProxy, address: str, config: Config) -> Optional[Tuple[int, datetime]]:
+    """Retrieve wallet balance and last activity date via RPC."""
     try:
-        result = rpc_connection.scantxoutset("start", [f"addr({address})"])
-        if result and 'total_amount' in result:
-            # Convert balance from BTC to satoshis
-            balance = int(float(result['total_amount']) * 100_000_000)
-            return balance
+        # Get transaction history
+        transactions = rpc_connection.listtransactions("*", 1000, 0, True)
+        address_txs = [tx for tx in transactions if tx.get("address") == address]
         
-        return None
+        if not address_txs:
+            return (0, None)  # No transactions yet
+            
+        last_active = max(
+            datetime.fromtimestamp(tx["time"]) 
+            for tx in address_txs
+        )
+        balance = int(float(rpc_connection.getreceivedbyaddress(address, 0)) * 100_000_000)
+        
+        return (balance, last_active)
     except JSONRPCException as e:
         logger.exception(f"RPC error while getting balance for {address}: {e}")
         return None
