@@ -1,8 +1,5 @@
 .env
-.cursorrules
-.gitignore
 .git/
-.cursorignore
 venv/
 .log
 .csv

@@ -4,3 +4,7 @@ backend/*.csv
 backend/*.txt
 backend/*.tsv
 backend/*.tsv.gz
+venv/
+.aider*
+.aider*/
+.env.aider

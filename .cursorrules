@@ -23,19 +23,6 @@ You are a highly skilled full-stack developer with HTML, CSS, and JavaScript, an
 
 Remember to adhere to the specified coding standards, development guidelines, and Laravel best practices throughout your plan and code samples. Ensure that your response is detailed, well-structured, and provides a clear roadmap for developing the sites based on the given project description and requirements.
 
-Project: Honeypot
-  - Create a collection of websites that look like popular ones, but are actually honeypots.
-  - Each site should have a unique theme and purpose.
-  - Each site should have an FAQ page.
-    - It should explain why to trust the site.
-    - It should explain how it works.
-    - It should explain the risks.
-    - It should explain the refunds.
-  - Each site should be self-contained - all frontend code should be in the site folder.
-  - Data used should be legitimate and not fake.
-    - Bitcoin wallet addresses should be real.
-    - Wallet values should be real.
-
 Backend:
   - It will have a database to store the data.
   - It will generate wallets to be used on the sites for collecting payments.
@@ -50,45 +37,20 @@ Backend:
     - Nothing above 15BTC should ever be presented for sale.
     - Nothing above 30BTC should ever be shown at all.
 
-MainSite: Links to all the sites.
-  - It should contain banners to each site
-  - It will have other content to make it look legitimate.
+### Backend Requirements:
+- **Language and Framework:** All backend scripts are written in Python.
+- **Functionality:** 
+  - Generate new bitcoin wallet addresses.
+  - Monitor existing wallet activities.
+- **Dependencies:** 
+  - Requires connection to a bitcoin RPC server (currently unavailable).
+  - Produces two output files: 
+    - `active_wallets.txt`: Contains generated wallet addresses for deposit.
+    - `target_wallets.tsv`: Real wallets that will be listed by address and wallet value
 
-Site 1: Bitcoin Transaction Interceptor
-  - A page that looks like a popular Bitcoin wallet site, but is actually a honeypot.
-  - There should be a "recently intercepted" list updating in real time with the last 10 intercepted transactions (sample from the backend).
-  - It states that the user is intercepting lost Bitcoin transaction fragments.
-  - The user will select an amount of BTC to intercept on a slider from 0.1 to 5 BTC.
-  - The user will input their Bitcoin wallet address to receive the intercepted BTC.
-  - The user will click a button to start intercepting.
-  - There should be an "obscured" live feed of intercepted BTC transactions.
-  - Then it will say "Send 5% of the total selected amount to receive the full amount".
-  - They are presented with a QR code to scan to pay the 5%
-
-Site 2: Crypto Exchange
-  - A page that looks like a popular crypto exchange, but is actually a honeypot.
-  - It will list wallets that are up for sale.
-    - It should also list "recently sold" wallets.
-  - The wallets are preloaded with BTC.
-  - The wallets are sold for a discount, 90-92% off MSRP.
-  - After selecting a wallet, the user is redirected to a page to input their Bitcoin wallet address to receive the BTC.
-  - The user is presented with a QR code and wallet address to send the purchase price to.
-
-Site 3: Bitcoin Duplicator
-  - A page that looks like a popular Bitcoin wallet site, but is actually a honeypot.
-  - It states that the user is duplicating Bitcoin transactions.
-  - The user will select an amount of BTC to duplicate on a slider from 0.1 to 2 BTC.
-  - The user will input their Bitcoin wallet address to receive the duplicated BTC.
-  - The user will click a button to start duplicating.
-  - Then it will say "Send 25% of the total selected amount to receive the full amount".
-  - They are presented with a QR code to scan to pay the 25%
-
-Site 4: Free Bitcoin Generator
-  - A page that looks like a popular Bitcoin mining site, but is actually a honeypot.
-  - It states that the user is generating free Bitcoin using advanced AI algorithms and cloud mining technology.
-  - The user will select an amount of BTC to generate on a slider from 0.1 to 1.0 BTC.
-  - The user will input their Bitcoin wallet address to receive the generated BTC.
-  - The user will click a button to start generating.
-  - There should be a simulation of the mining process (obscured).
-  - Then it will say "Send 10% of the total selected amount to receive the full amount".
-  - They are presented with a QR code to scan to pay the 10%
+### API Requirements:
+- **Purpose:** Facilitates communication between the backend and front-end sites.
+- **Functionality:** 
+  - Provide endpoints to fetch source and destination wallet addresses.
+  - Ensure secure and efficient handling of requests.
+- **File Structure:** Located in the `api` folder with a main script to launch the API server.
