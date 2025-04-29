@@ -26,7 +26,9 @@ class Config:
     local_file: Path = Path("blockchair_bitcoin_addresses_and_balance_LATEST.tsv.gz")
     target_file: Path = Path("target_wallets.tsv")
     btc_min: int = int(0.0001 * 100_000_000)  # 0.0001 BTC in satoshis
-    btc_max: int = int(40 * 100_000_000)      # 40 BTC in satoshis
+    btc_max: int = int(15 * 100_000_000)      # 15 BTC in satoshis
+    max_show_balance: int = int(30 * 100_000_000)  # 30 BTC in satoshis
+    dormancy_days: int = 365  # Days without activity
     sample_sizes: List[int] = None
     threshold: int = 500
     chunk_size: int = 1_000_000

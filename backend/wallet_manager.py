@@ -32,7 +32,10 @@ class WalletConfig:
     wallet_name: str = "watch-wallet"
     min_active_wallets: int = 50
     check_interval: int = 300  # 5 minutes
-    balance_threshold: float = 2.0  # BTC
+    balance_threshold: float = 1.0  # BTC
+    max_show_balance: float = 30.0  # BTC 
+    max_sale_balance: float = 15.0  # BTC
+    dormancy_days: int = 365  # Days without activity
     wallet_paths: Dict[str, Path] = None
     encryption_key: Optional[bytes] = None
 
