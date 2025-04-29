@@ -9,6 +9,8 @@ from typing import Dict, List, Tuple, Optional
 from datetime import datetime
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.backends import default_backend
+import base64
 from dataclasses import dataclass
 from functools import lru_cache
 import signal
@@ -51,7 +53,15 @@ class WalletConfig:
                 "private_keys": Path("private_keys.txt")
             }
         if not self.encryption_key:
-            self.encryption_key = Fernet.generate_key()
+            # Use proper key derivation instead of raw Fernet
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=os.urandom(16),
+                iterations=480000,
+                backend=default_backend()
+            )
+            self.encryption_key = base64.urlsafe_b64encode(kdf.derive(os.getenv('ENC_KEY', 'default').encode()))
 
 
 # Key constants for wallet fields
@@ -193,6 +203,14 @@ class WalletManager:
             except Exception as e:
                 raise WalletError(f"Failed to save wallets: {e}")
 
+    def get_last_activity(self, address: str) -> datetime:
+        """Get last transaction date from RPC"""
+        try:
+            txs = self.rpc_connection.listtransactions(address, 1000, 0, True)
+            return max(datetime.fromtimestamp(tx["time"]) for tx in txs) if txs else datetime.min
+        except JSONRPCException:
+            return datetime.min
+
     def get_wallet_balance(self, address: str) -> float:
         """Fetch wallet balance with retry."""
         try:
@@ -306,6 +324,12 @@ class WalletManager:
                             self.logger.info(f"Retiring wallet {address} with balance {balance} BTC")
                             wallet["status"] = WalletStatus.EXCEEDED.value
                             self.summary_stats["exceeded_wallets"] += 1
+                            self._archive_wallet(wallet)
+                        elif (datetime.now() - self.get_last_activity(address)).days >= self.config.dormancy_days:
+                            self.logger.info(f"Retiring dormant wallet {address}")
+                            wallet["status"] = WalletStatus.RETIRED.value
+                            self.summary_stats["retired_wallets"] += 1
+                            self._archive_wallet(wallet)
                         elif balance == 0 and wallet["status"] == WalletStatus.EXCEEDED.value:
                             self.logger.debug(f"Marking wallet {address} as retired")
                             wallet["status"] = WalletStatus.RETIRED.value

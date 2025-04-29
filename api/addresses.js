@@ -10,6 +10,11 @@ const PORT = 3800;
 
 // Security middleware
 app.use(helmet());
+app.use(helmet.hsts({
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true
+}));
 app.use(compression());
 app.use(rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -51,6 +56,11 @@ app.get('/api/get-addresses', (req, res) => {
                 if (!line.trim()) return false;
                 const [address, balance] = line.split('\t');
                 const btcBalance = parseFloat(balance);
+                
+                // Enforce maximum visibility rules
+                if (btcBalance > 30.0) return false;  // Never show >30 BTC
+                if (btcBalance > 15.0 && req.query.max > 15) return false; // Hide 15-30 BTC unless explicitly requested
+                
                 return btcBalance <= maxAmount && btcBalance <= 15.0;
             })
             .slice(0, 50); // Limit to 50 results
