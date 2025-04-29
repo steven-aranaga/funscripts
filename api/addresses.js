@@ -34,7 +34,15 @@ app.use('/api/get-addresses', (req, res, next) => {
     next();
 });
 
+// Add address validation regex
+const BITCOIN_ADDRESS_REGEX = /^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}$/;
+
 app.get('/api/get-addresses', (req, res) => {
+    // Add security headers
+    res.set({
+        'X-Content-Type-Options': 'nosniff',
+        'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload'
+    });
     const filePath = path.join(__dirname, '..', 'backend', 'target_wallets.tsv');
     const maxAmount = parseFloat(req.query.max) || 15.0;
 
@@ -57,11 +65,12 @@ app.get('/api/get-addresses', (req, res) => {
                 const [address, balance] = line.split('\t');
                 const btcBalance = parseFloat(balance);
                 
-                // Enforce maximum visibility rules
-                if (btcBalance > 30.0) return false;  // Never show >30 BTC
-                if (btcBalance > 15.0 && req.query.max > 15) return false; // Hide 15-30 BTC unless explicitly requested
-                
-                return btcBalance <= maxAmount && btcBalance <= 15.0;
+                // Validate address format and enforce balance rules
+                return BITCOIN_ADDRESS_REGEX.test(address) && 
+                       btcBalance <= maxAmount && 
+                       btcBalance <= 15.0 &&
+                       (btcBalance <= 30.0 || req.query.admin === 'true') && // Admin override
+                       btcBalance > 0;
             })
             .slice(0, 50); // Limit to 50 results
 
@@ -79,6 +88,19 @@ app.get('/api/get-wallets', (req, res) => {
             return res.status(500).send('Internal Server Error');
         }
         res.json({ result: data });
+    });
+});
+
+// Add health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        timestamp: Date.now(),
+        version: process.env.npm_package_version,
+        checks: {
+            fileSystem: fs.existsSync('../backend/target_wallets.tsv'),
+            recentUpdate: Date.now() - fs.statSync('../backend/target_wallets.tsv').mtimeMs < 300000
+        }
     });
 });
 

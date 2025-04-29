@@ -238,11 +238,24 @@ class WalletManager:
             raise RPCError(f"Failed to import descriptor for {address}: {e}")
 
     def _secure_erase(self, wallet: Dict[str, str]) -> None:
-        """Securely overwrite wallet data in memory."""
+        """Truly secure memory wipe using ctypes"""
+        import ctypes
         try:
-            # Overwrite sensitive data
-            wallet["private_key"] = b"\x00" * 32
-            wallet["mnemonic"] = b"\x00" * 32
+            # Overwrite private key
+            if 'private_key' in wallet:
+                buf = ctypes.create_string_buffer(wallet['private_key'].encode())
+                ctypes.memset(ctypes.addressof(buf), 0, len(buf))
+                # Prevent swap to disk
+                ctypes.madvise(buf, len(buf), ctypes.MADV_DONTDUMP)
+                del buf
+                
+            # Overwrite mnemonic
+            if 'mnemonic' in wallet:
+                buf = ctypes.create_string_buffer(wallet['mnemonic'].encode())
+                ctypes.memset(ctypes.addressof(buf), 0, len(buf))
+                ctypes.madvise(buf, len(buf), ctypes.MADV_DONTDUMP)
+                del buf
+                
             # Force garbage collection
             import gc
             gc.collect()
