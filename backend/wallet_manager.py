@@ -262,6 +262,25 @@ class WalletManager:
         except Exception as e:
             self.logger.error(f"Secure erase failed: {e}")
 
+    def rotate_encryption_key(self, new_key: bytes) -> None:
+        """Rotate encryption keys for all wallets"""
+        try:
+            old_fernet = self.fernet
+            self.fernet = Fernet(new_key)
+            
+            wallets = self.load_wallets()
+            for wallet in wallets:
+                # Re-encrypt with new key
+                decrypted = old_fernet.decrypt(wallet['private_key'].encode())
+                wallet['private_key'] = self.fernet.encrypt(decrypted).decode()
+                
+            self.save_wallets(wallets)
+            self.logger.info("Key rotation completed successfully")
+            
+        except Exception as e:
+            self.logger.error(f"Key rotation failed: {e}")
+            raise
+
     def _log_audit_event(self, event_type: str, address: str) -> None:
         """Write to append-only audit log"""
         audit_log = Path("audit.log")
